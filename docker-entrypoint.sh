@@ -13,6 +13,10 @@ sleep 10
 echo "Running migrations..."
 php artisan migrate --force
 
+# Run seeders
+echo "Running seeders..."
+php artisan db:seed --force
+
 # Cache config for better performance
 echo "Caching configuration..."
 php artisan config:cache
