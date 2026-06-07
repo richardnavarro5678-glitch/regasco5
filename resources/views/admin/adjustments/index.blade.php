@@ -163,7 +163,8 @@
                 @forelse($recentAdjustments as $adjustment)
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-3 text-sm text-gray-600">{{ $adjustment->adjustment_date->format('M d, Y') }}</td>
-                        <td class="px-6 py-3 text-sm font-medium text-gray-800">{{ $adjustment->product->product_name }}</td>
+                        <!-- FIX: Added null check for product -->
+                        <td class="px-6 py-3 text-sm font-medium text-gray-800">{{ $adjustment->product->product_name ?? 'Deleted Product' }}</td>
                         <td class="px-6 py-3 text-center">
                             @php
                                 $typeColors = [
