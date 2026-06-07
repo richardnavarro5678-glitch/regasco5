@@ -183,7 +183,7 @@ class SupplierReturnController extends Controller
                     'product_id' => $product->product_id,
                     'movement_type' => 'supplier_return',
                     'quantity' => -$validated['quantity'],
-                    'reference_type' => 'supplier_return',
+                    'reference_type' => 'adjustment', // FIX: Use valid enum value
                     'reference_id' => $return->return_id,
                     'stock_before' => $stockBefore,
                     'stock_after' => $product->stock_quantity,
@@ -191,12 +191,19 @@ class SupplierReturnController extends Controller
                     'remarks' => 'Supplier Return - Reason: Other - Product stock deducted by ' . $validated['quantity'],
                 ]);
             } else {
+                // FIX: Map adjustment_type to valid reference_type for stock_movements
+                $referenceType = match($adjustmentType) {
+                    'damage_out' => 'adjustment',
+                    'customer_damaged' => 'customer_damaged',
+                    default => 'return_in',
+                };
+
                 // Return In / Damaged / Customer Damaged: No stock change, only pool deduction
                 StockMovement::create([
                     'product_id' => $product->product_id,
                     'movement_type' => 'adjustment',
                     'quantity' => 0,
-                    'reference_type' => $adjustmentType,
+                    'reference_type' => $referenceType, // FIX: Use mapped valid enum value
                     'reference_id' => $return->return_id,
                     'stock_before' => $stockBefore,
                     'stock_after' => $stockBefore,
