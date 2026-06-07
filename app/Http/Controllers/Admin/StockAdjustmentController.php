@@ -154,20 +154,17 @@ class StockAdjustmentController extends Controller
             }
 
             // Log stock movement
-            StockMovement::create([
-                'product_id' => $validated['product_id'],
-                'movement_type' => 'adjustment',
-                'quantity' => $quantityChange,
-                'reference_type' => $validated['adjustment_type'],
-                'reference_id' => $adjustment->adjustment_id,
-                'stock_before' => $stockBefore,
-                'stock_after' => $stockBefore + $quantityChange,
-                'user_id' => Auth::id(),
-                'remarks' => $validated['reason'] . 
-                    ($validated['adjustment_type'] === 'return_in' ? ' (Customer return - no stock change)' : 
-                     ($validated['adjustment_type'] === 'damage_out' ? ' (Damaged - Stock deducted)' : 
-                     ($validated['adjustment_type'] === 'customer_damaged' ? ' (Customer damaged return - no stock change)' : 
-                     ($validated['adjustment_type'] === 'lost' ? ' (Lost/Missing recorded - no stock change)' : '')))),
+            if ($quantityChange != 0) {
+        StockMovement::create([
+               'product_id' => $validated['product_id'],
+               'movement_type' => 'adjustment',
+               'quantity' => abs($quantityChange),
+               'reference_type' => $validated['adjustment_type'],
+               'reference_id' => $adjustment->adjustment_id,
+               'stock_before' => $stockBefore,
+               'stock_after' => $stockBefore + $quantityChange,
+               'user_id' => Auth::id(),
+               'remarks' => $validated['reason'],
             ]);
         });
 
