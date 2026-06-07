@@ -85,7 +85,7 @@
                 @forelse($sales as $sale)
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm text-gray-600">{{ $sale->sale_date->format('M d, Y') }}</td>
-                        <td class="px-4 py-3 font-medium text-gray-800">{{ $sale->product->product_name }}</td>
+                        <td class="px-4 py-3 font-medium text-gray-800">{{ $sale->product->product_name ?? 'Deleted Product' }}</td>
                         <td class="px-4 py-3 text-sm text-gray-600">{{ $sale->user->name }}</td>
                         <td class="px-4 py-3 text-center text-sm">{{ $sale->quantity }}</td>
                         <td class="px-4 py-3 text-right text-sm text-gray-600">₱{{ number_format($sale->unit_price, 2) }}</td>
