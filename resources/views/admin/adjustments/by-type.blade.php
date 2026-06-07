@@ -94,7 +94,7 @@
                                 <div class="w-8 h-8 {{ $typeConfig['bg_color'] }} rounded-lg flex items-center justify-center mr-2">
                                     <i class="fas fa-box {{ $typeConfig['icon_color'] }} text-xs"></i>
                                 </div>
-                                <span class="text-sm font-medium text-gray-800">{{ $adjustment->product->product_name }}</span>
+                                <span class="text-sm font-medium text-gray-800">{{ $adjustment->product->product_name ?? 'Deleted Product' }}</span>
                             </div>
                         </td>
                         <td class="px-6 py-4 text-center">
