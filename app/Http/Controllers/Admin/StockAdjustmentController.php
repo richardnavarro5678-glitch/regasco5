@@ -147,11 +147,19 @@ class StockAdjustmentController extends Controller
             }
 
             if ($quantityChange != 0) {
+                // FIX: Map adjustment_type to valid reference_type for stock_movements
+                $referenceType = match($validated['adjustment_type']) {
+                    'damage_out' => 'adjustment',
+                    'customer_damaged' => 'adjustment',
+                    'lost' => 'adjustment',
+                    default => $validated['adjustment_type'],
+                };
+
                 StockMovement::create([
                     'product_id' => $validated['product_id'],
                     'movement_type' => 'adjustment',
                     'quantity' => abs($quantityChange),
-                    'reference_type' => $validated['adjustment_type'],
+                    'reference_type' => $referenceType,
                     'reference_id' => $adjustment->adjustment_id,
                     'stock_before' => $stockBefore,
                     'stock_after' => $stockBefore + $quantityChange,
