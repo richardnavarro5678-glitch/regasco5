@@ -118,6 +118,10 @@
                 @php $currentDate = null; @endphp
                 
                 @forelse($groupedSales as $dailySale)
+                    @if($dailySale->product_name === 'Deleted Product')
+                        @continue
+                    @endif
+                    
                     @if($currentDate != $dailySale->date->format('Y-m-d'))
                         @php $currentDate = $dailySale->date->format('Y-m-d'); @endphp
                         <tr style="background: #f3f4f6;">
