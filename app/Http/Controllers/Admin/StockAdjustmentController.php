@@ -59,13 +59,59 @@ class StockAdjustmentController extends Controller
     public function index()
     {
         $typeStats = [];
-        foreach (array_keys($this->adjustmentTypes) as $type) {
-            $typeStats[$type] = [
-                'count' => StockAdjustment::where('adjustment_type', $type)->count(),
-                'total_quantity' => StockAdjustment::where('adjustment_type', $type)->sum('quantity'),
-                'last_adjustment' => StockAdjustment::where('adjustment_type', $type)->latest()->first(),
-            ];
-        }
+        
+        // FIX: Count by original type using reason field or separate query
+        // Since we map customer_damaged and lost to return_in in DB,
+        // we need to count them differently
+        
+        // Count return_in (original)
+        $typeStats['return_in'] = [
+            'count' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'not like', '(%')
+                ->count(),
+            'total_quantity' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'not like', '(%')
+                ->sum('quantity'),
+            'last_adjustment' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'not like', '(%')
+                ->latest()
+                ->first(),
+        ];
+        
+        // Count damage_out
+        $typeStats['damage_out'] = [
+            'count' => StockAdjustment::where('adjustment_type', 'damage_out')->count(),
+            'total_quantity' => StockAdjustment::where('adjustment_type', 'damage_out')->sum('quantity'),
+            'last_adjustment' => StockAdjustment::where('adjustment_type', 'damage_out')->latest()->first(),
+        ];
+        
+        // FIX: Count customer_damaged by checking reason field for marker
+        $typeStats['customer_damaged'] = [
+            'count' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(customer_damaged)%')
+                ->count(),
+            'total_quantity' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(customer_damaged)%')
+                ->sum('quantity'),
+            'last_adjustment' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(customer_damaged)%')
+                ->latest()
+                ->first(),
+        ];
+        
+        // FIX: Count lost by checking reason field for marker
+        $typeStats['lost'] = [
+            'count' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(lost)%')
+                ->count(),
+            'total_quantity' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(lost)%')
+                ->sum('quantity'),
+            'last_adjustment' => StockAdjustment::where('adjustment_type', 'return_in')
+                ->where('reason', 'like', '%(lost)%')
+                ->latest()
+                ->first(),
+        ];
 
         $recentAdjustments = StockAdjustment::with(['product', 'user'])
             ->latest()
@@ -83,16 +129,29 @@ class StockAdjustmentController extends Controller
 
         $typeConfig = $this->adjustmentTypes[$type];
 
-        $adjustments = StockAdjustment::with(['product', 'user'])
-            ->where('adjustment_type', $type)
-            ->latest()
-            ->paginate(20);
+        // FIX: Query based on mapped types
+        $query = StockAdjustment::with(['product', 'user']);
+        
+        if ($type === 'customer_damaged') {
+            $query->where('adjustment_type', 'return_in')
+                  ->where('reason', 'like', '%(customer_damaged)%');
+        } elseif ($type === 'lost') {
+            $query->where('adjustment_type', 'return_in')
+                  ->where('reason', 'like', '%(lost)%');
+        } elseif ($type === 'return_in') {
+            $query->where('adjustment_type', 'return_in')
+                  ->where('reason', 'not like', '%(customer_damaged)%')
+                  ->where('reason', 'not like', '%(lost)%');
+        } else {
+            $query->where('adjustment_type', $type);
+        }
+
+        $adjustments = $query->latest()->paginate(20);
 
         $stats = [
-            'total_count' => StockAdjustment::where('adjustment_type', $type)->count(),
-            'total_quantity' => StockAdjustment::where('adjustment_type', $type)->sum('quantity'),
-            'this_month' => StockAdjustment::where('adjustment_type', $type)
-                ->whereMonth('adjustment_date', now()->month)
+            'total_count' => $query->count(),
+            'total_quantity' => $query->sum('quantity'),
+            'this_month' => (clone $query)->whereMonth('adjustment_date', now()->month)
                 ->whereYear('adjustment_date', now()->year)
                 ->count(),
         ];
@@ -124,18 +183,21 @@ class StockAdjustmentController extends Controller
 
         $validated['user_id'] = Auth::id();
 
-        // FIX: Map frontend adjustment_type to valid database values for stock_adjustments
-        $dbAdjustmentType = match($validated['adjustment_type']) {
-            'customer_damaged' => 'return_in',
-            'lost' => 'return_in',
-            default => $validated['adjustment_type'],
-        };
-
         // Store original type for logic
         $originalType = $validated['adjustment_type'];
 
+        // FIX: Map frontend adjustment_type to valid database values for stock_adjustments
+        $dbAdjustmentType = match($originalType) {
+            'customer_damaged' => 'return_in',
+            'lost' => 'return_in',
+            default => $originalType,
+        };
+
         // Override for database storage
         $validated['adjustment_type'] = $dbAdjustmentType;
+
+        // FIX: Add marker to reason for identification
+        $validated['reason'] = $validated['reason'] . ' (' . $originalType . ')';
 
         DB::transaction(function () use ($validated, $originalType) {
             $product = Product::find($validated['product_id']);
@@ -170,7 +232,7 @@ class StockAdjustmentController extends Controller
                 'stock_before' => $stockBefore,
                 'stock_after' => $stockBefore + $quantityChange,
                 'user_id' => Auth::id(),
-                'remarks' => $validated['reason'] . ' (' . $originalType . ')',
+                'remarks' => $validated['reason'],
             ]);
         });
 
