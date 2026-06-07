@@ -35,7 +35,7 @@ class ReportController extends Controller
             return (object) [
                 'date' => $firstSale->sale_date,
                 'product_id' => $firstSale->product_id,
-                'product_name' => $firstSale->product->product_name,
+                'product_name' => $firstSale->product->product_name ?? 'Deleted Product',
                 'quantity' => $productSales->sum('quantity'),
                 'total_price' => $productSales->sum('total_price'),
                 'unit_price' => $firstSale->unit_price,
