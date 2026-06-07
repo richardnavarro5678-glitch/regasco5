@@ -90,7 +90,7 @@
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-3 text-sm text-gray-600">{{ $return->return_date->format('M d, Y') }}</td>
                             <td class="px-6 py-3 text-sm font-medium text-gray-800">{{ $return->supplier->supplier_name }}</td>
-                            <td class="px-6 py-3 text-sm text-gray-600">{{ $return->product->product_name }}</td>
+                            <td class="px-6 py-3 text-sm text-gray-600">{{ $return->product->product_name ?? 'Deleted Product' }}</td>
                             <td class="px-6 py-3 text-center text-sm font-semibold">{{ $return->quantity }}</td>
                             <td class="px-6 py-3 text-center">
                                 @if($return->status === 'completed')
