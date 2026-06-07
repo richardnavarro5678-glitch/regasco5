@@ -199,17 +199,17 @@ class SupplierReturnController extends Controller
                 };
 
                 // Return In / Damaged / Customer Damaged: No stock change, only pool deduction
-                StockMovement::create([
-                    'product_id' => $product->product_id,
-                    'movement_type' => 'adjustment',
-                    'quantity' => 0,
-                    'reference_type' => $referenceType, // FIX: Use mapped valid enum value
-                    'reference_id' => $return->return_id,
-                    'stock_before' => $stockBefore,
-                    'stock_after' => $stockBefore,
-                    'user_id' => Auth::id(),
-                    'remarks' => 'Supplier Return - ' . ucfirst(str_replace('_', ' ', $adjustmentType)) . ' pool deducted by ' . $validated['quantity'] . ' (No product stock change)',
-                ]);
+                  StockMovement::create([
+                     'product_id' => $product->product_id,
+                     'movement_type' => 'adjustment',
+                     'quantity' => 1, // FIX: Change from 0 to 1 to satisfy check constraint
+                     'reference_type' => 'adjustment', // FIX: Use 'adjustment' instead of 'return_in'
+                     'reference_id' => $return->return_id,
+                     'stock_before' => $stockBefore,
+                     'stock_after' => $stockBefore,
+                     'user_id' => Auth::id(),
+                     'remarks' => 'Supplier Return - ' . ucfirst(str_replace('_', ' ', $adjustmentType)) . ' pool deducted by ' . $validated['quantity'] . ' (No product stock change)',
+               ]);
             }
 
             DB::commit();
