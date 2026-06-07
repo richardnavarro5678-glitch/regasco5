@@ -124,11 +124,24 @@ class StockAdjustmentController extends Controller
 
         $validated['user_id'] = Auth::id();
 
-        DB::transaction(function () use ($validated) {
+        // FIX: Map frontend adjustment_type to valid database values for stock_adjustments
+        $dbAdjustmentType = match($validated['adjustment_type']) {
+            'customer_damaged' => 'return_in',
+            'lost' => 'return_in',
+            default => $validated['adjustment_type'],
+        };
+
+        // Store original type for logic
+        $originalType = $validated['adjustment_type'];
+
+        // Override for database storage
+        $validated['adjustment_type'] = $dbAdjustmentType;
+
+        DB::transaction(function () use ($validated, $originalType) {
             $product = Product::find($validated['product_id']);
             $stockBefore = $product->stock_quantity;
 
-            $quantityChange = match($validated['adjustment_type']) {
+            $quantityChange = match($originalType) {
                 'return_in' => 0,
                 'damage_out' => -$validated['quantity'],
                 'customer_damaged' => 0,
@@ -147,12 +160,12 @@ class StockAdjustmentController extends Controller
             }
 
             if ($quantityChange != 0) {
-                // FIX: Map adjustment_type to valid reference_type for stock_movements
-                $referenceType = match($validated['adjustment_type']) {
+                // FIX: Map to valid reference_type for stock_movements
+                $referenceType = match($originalType) {
                     'damage_out' => 'adjustment',
                     'customer_damaged' => 'adjustment',
                     'lost' => 'adjustment',
-                    default => $validated['adjustment_type'],
+                    default => $originalType,
                 };
 
                 StockMovement::create([
