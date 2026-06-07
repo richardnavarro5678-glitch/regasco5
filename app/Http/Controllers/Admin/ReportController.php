@@ -19,29 +19,29 @@ class ReportController extends Controller
         $startDate = $request->input('start_date', date('Y-m-01'));
         $endDate = $request->input('end_date', date('Y-m-d'));
 
+        // FIX: Only include sales with existing products
         $sales = Sale::with(['product', 'user'])
+            ->whereHas('product') // FIX: Filter out sales with deleted products
             ->whereDate('sale_date', '>=', $startDate)
             ->whereDate('sale_date', '<=', $endDate)
             ->latest()
             ->get();
 
         // FIX: Group sales by DATE + PRODUCT (not just date)
-        // Example: May 14 → LPG tank (combined) + Nova (combined)
         $groupedSales = $sales->groupBy(function ($sale) {
-            // Group by date + product_id para magkahiwalay per product per day
             return $sale->sale_date->format('Y-m-d') . '_' . $sale->product_id;
         })->map(function ($productSales) {
             $firstSale = $productSales->first();
             return (object) [
                 'date' => $firstSale->sale_date,
                 'product_id' => $firstSale->product_id,
-                'product_name' => $firstSale->product->product_name ?? 'Deleted Product',
+                'product_name' => $firstSale->product->product_name, // FIX: No need for ?? since we filtered
                 'quantity' => $productSales->sum('quantity'),
                 'total_price' => $productSales->sum('total_price'),
                 'unit_price' => $firstSale->unit_price,
                 'transaction_count' => $productSales->count(),
             ];
-        })->sortBy('date')->values(); // Sort by date then reset keys
+        })->sortBy('date')->values();
 
         $totalRevenue = $sales->sum('total_price');
         $totalTransactions = $sales->count();
