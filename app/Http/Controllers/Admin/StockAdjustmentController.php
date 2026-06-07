@@ -24,7 +24,6 @@ class StockAdjustmentController extends Controller
             'icon_color' => 'text-blue-600',
             'badge_color' => 'bg-blue-100',
         ],
-        // FIX: damage_out now DEDUCTS stock (for warehouse/physical damage)
         'damage_out' => [
             'label' => 'Damaged',
             'description' => 'Broken or damaged stock - DEDUCTS from product stock',
@@ -35,7 +34,6 @@ class StockAdjustmentController extends Controller
             'icon_color' => 'text-red-600',
             'badge_color' => 'bg-red-100',
         ],
-        // FIX: New type - customer damaged return (no stock change)
         'customer_damaged' => [
             'label' => 'Customer Damaged',
             'description' => 'Customer returned damaged item - Record only (no stock change)',
@@ -116,7 +114,6 @@ class StockAdjustmentController extends Controller
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,product_id',
-            // FIX: Added customer_damaged to validation
             'adjustment_type' => 'required|in:return_in,damage_out,customer_damaged,lost',
             'quantity' => 'required|integer|min:1',
             'reason' => 'required|string|max:255',
@@ -131,41 +128,37 @@ class StockAdjustmentController extends Controller
             $product = Product::find($validated['product_id']);
             $stockBefore = $product->stock_quantity;
 
-            // FIX: damage_out now DEDUCTS stock, customer_damaged has NO stock change
             $quantityChange = match($validated['adjustment_type']) {
                 'return_in' => 0,
-                'damage_out' => -$validated['quantity'], // FIX: Now deducts stock
-                'customer_damaged' => 0, // FIX: New type - no stock change
+                'damage_out' => -$validated['quantity'],
+                'customer_damaged' => 0,
                 'lost' => 0,
                 default => -$validated['quantity'],
             };
 
-            // FIX: Check stock only for damage_out (the only type that deducts stock)
             if ($quantityChange < 0 && $stockBefore < abs($quantityChange)) {
                 throw new \Exception('Insufficient stock for this adjustment.');
             }
 
-            // Always create new record
             $adjustment = StockAdjustment::create($validated);
 
-            // FIX: Update product stock for damage_out (deducts stock)
             if ($quantityChange !== 0) {
                 $product->increment('stock_quantity', $quantityChange);
             }
 
-            // Log stock movement
             if ($quantityChange != 0) {
-        StockMovement::create([
-               'product_id' => $validated['product_id'],
-               'movement_type' => 'adjustment',
-               'quantity' => abs($quantityChange),
-               'reference_type' => $validated['adjustment_type'],
-               'reference_id' => $adjustment->adjustment_id,
-               'stock_before' => $stockBefore,
-               'stock_after' => $stockBefore + $quantityChange,
-               'user_id' => Auth::id(),
-               'remarks' => $validated['reason'],
-            ]);
+                StockMovement::create([
+                    'product_id' => $validated['product_id'],
+                    'movement_type' => 'adjustment',
+                    'quantity' => abs($quantityChange),
+                    'reference_type' => $validated['adjustment_type'],
+                    'reference_id' => $adjustment->adjustment_id,
+                    'stock_before' => $stockBefore,
+                    'stock_after' => $stockBefore + $quantityChange,
+                    'user_id' => Auth::id(),
+                    'remarks' => $validated['reason'],
+                ]);
+            }
         });
 
         return redirect()->route('admin.adjustments.index')
