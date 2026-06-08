@@ -26,17 +26,18 @@ class SupplierReturnController extends Controller
         $rejectedCount = SupplierReturn::where('status', 'rejected')->count();
         $rejectedQty = SupplierReturn::where('status', 'rejected')->sum('quantity');
 
+        // FIX: Simplified supplier summary to avoid collection errors
         $supplierSummary = SupplierReturn::select(
                 'supplier_id',
                 DB::raw('COUNT(*) as returns_count'),
                 DB::raw('SUM(quantity) as total_quantity')
             )
-            ->with('supplier')
             ->groupBy('supplier_id')
             ->get()
             ->map(function ($item) {
+                $supplier = Supplier::find($item->supplier_id);
                 return (object)[
-                    'supplier_name' => $item->supplier->supplier_name ?? 'Unknown',
+                    'supplier_name' => $supplier->supplier_name ?? 'Unknown',
                     'returns_count' => $item->returns_count,
                     'total_quantity' => $item->total_quantity,
                 ];
@@ -59,9 +60,12 @@ class SupplierReturnController extends Controller
             ->latest()
             ->paginate(20);
 
+        // FIX: Calculate total quantity separately to avoid collection sum error
+        $totalQty = SupplierReturn::where('status', $status)->sum('quantity');
+
         $statusLabel = ucfirst($status);
 
-        return view('admin.supplier-returns.status', compact('returns', 'status', 'statusLabel'));
+        return view('admin.supplier-returns.status', compact('returns', 'status', 'statusLabel', 'totalQty'));
     }
 
     public function bySupplier($supplier)
@@ -71,6 +75,7 @@ class SupplierReturnController extends Controller
             ->latest()
             ->paginate(20);
 
+        // FIX: Initialize supplierSummary as empty collection
         $supplierSummary = collect();
 
         return view('admin.supplier-returns.index', compact(
@@ -183,7 +188,7 @@ class SupplierReturnController extends Controller
                     'product_id' => $product->product_id,
                     'movement_type' => 'supplier_return',
                     'quantity' => -$validated['quantity'],
-                    'reference_type' => 'adjustment', // FIX: Use valid enum value
+                    'reference_type' => 'supplier_return',
                     'reference_id' => $return->return_id,
                     'stock_before' => $stockBefore,
                     'stock_after' => $product->stock_quantity,
@@ -191,25 +196,18 @@ class SupplierReturnController extends Controller
                     'remarks' => 'Supplier Return - Reason: Other - Product stock deducted by ' . $validated['quantity'],
                 ]);
             } else {
-                // FIX: Map adjustment_type to valid reference_type for stock_movements
-                $referenceType = match($adjustmentType) {
-                    'damage_out' => 'adjustment',
-                    'customer_damaged' => 'customer_damaged',
-                    default => 'return_in',
-                };
-
                 // Return In / Damaged / Customer Damaged: No stock change, only pool deduction
-                  StockMovement::create([
-                     'product_id' => $product->product_id,
-                     'movement_type' => 'adjustment',
-                     'quantity' => 1, // FIX: Change from 0 to 1 to satisfy check constraint
-                     'reference_type' => 'adjustment', // FIX: Use 'adjustment' instead of 'return_in'
-                     'reference_id' => $return->return_id,
-                     'stock_before' => $stockBefore,
-                     'stock_after' => $stockBefore,
-                     'user_id' => Auth::id(),
-                     'remarks' => 'Supplier Return - ' . ucfirst(str_replace('_', ' ', $adjustmentType)) . ' pool deducted by ' . $validated['quantity'] . ' (No product stock change)',
-               ]);
+                StockMovement::create([
+                    'product_id' => $product->product_id,
+                    'movement_type' => 'adjustment',
+                    'quantity' => 0,
+                    'reference_type' => $adjustmentType,
+                    'reference_id' => $return->return_id,
+                    'stock_before' => $stockBefore,
+                    'stock_after' => $stockBefore,
+                    'user_id' => Auth::id(),
+                    'remarks' => 'Supplier Return - ' . ucfirst(str_replace('_', ' ', $adjustmentType)) . ' pool deducted by ' . $validated['quantity'] . ' (No product stock change)',
+                ]);
             }
 
             DB::commit();
